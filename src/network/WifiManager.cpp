@@ -1,6 +1,6 @@
 #include "WifiManager.h"
 
-WifiManager Network;
+WifiManager WifiMgr;
 
 WifiManager::WifiManager() {}
 
@@ -12,9 +12,10 @@ void WifiManager::begin() {
     
     // If we have saved credentials, try to connect to STA
     if (Storage.settings.wifiSSID.length() > 0) {
+        Serial.printf("Saved WiFi credentials found for SSID: '%s'. Attempting STA connection...\n", Storage.settings.wifiSSID.c_str());
         connectToSTA();
     } else {
-        Serial.println("No WiFi credentials saved. AP Mode only.");
+        Serial.println("No WiFi credentials saved. Running in AP Mode only.");
         apModeOnly = true;
     }
     
@@ -28,11 +29,20 @@ void WifiManager::begin() {
 
 void WifiManager::startAP() {
     Serial.println("Starting AP Mode...");
+    IPAddress local_ip(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    
+    WiFi.softAPConfig(local_ip, gateway, subnet);
     WiFi.softAP(AP_SSID, AP_PASSWORD);
     
     IPAddress IP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
     Serial.println(IP);
+    
+    // Redirect all DNS requests to AP IP (Captive Portal)
+    dnsServer.start(53, "*", IP);
+    Serial.println("DNS Server started for Captive Portal (port 53)");
 }
 
 void WifiManager::connectToSTA() {
@@ -48,16 +58,37 @@ void WifiManager::connectToSTA() {
 }
 
 void WifiManager::loop() {
+    dnsServer.processNextRequest();
+
     if (apModeOnly) return;
     
     unsigned long currentMillis = millis();
-    
-    // Check connection status every 10 seconds if disconnected
-    if (WiFi.status() != WL_CONNECTED && (currentMillis - lastReconnectAttempt >= reconnectInterval)) {
-        Serial.println("WiFi disconnected. Attempting to reconnect...");
-        WiFi.disconnect();
-        WiFi.begin(Storage.settings.wifiSSID.c_str(), Storage.settings.wifiPass.c_str());
-        lastReconnectAttempt = currentMillis;
+    static bool wasConnected = false;
+
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!wasConnected) {
+            wasConnected = true;
+            Serial.println("\n==========================================");
+            Serial.print("🎉 WiFi Connected to: ");
+            Serial.println(Storage.settings.wifiSSID);
+            Serial.print("🌐 Local IP Address: ");
+            Serial.println(WiFi.localIP());
+            Serial.println("🔗 Local URL: http://matrix.local");
+            Serial.println("==========================================\n");
+        }
+    } else {
+        if (wasConnected) {
+            wasConnected = false;
+            Serial.println("⚠️ Lost WiFi connection.");
+        }
+        
+        // Reconnect attempt every 10 seconds
+        if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
+            Serial.println("Retrying WiFi connection...");
+            WiFi.disconnect();
+            WiFi.begin(Storage.settings.wifiSSID.c_str(), Storage.settings.wifiPass.c_str());
+            lastReconnectAttempt = currentMillis;
+        }
     }
 }
 

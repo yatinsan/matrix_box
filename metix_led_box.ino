@@ -8,6 +8,10 @@
 #include "src/effects/EffectManager.h"
 #include "src/effects/library/Rainbow.h"
 #include "src/effects/library/SolidColor.h"
+#include "src/effects/library/MatrixRain.h"
+#include "src/effects/library/Ripples.h"
+#include "src/effects/library/Twinkle.h"
+#include "src/effects/library/Plasma.h"
 
 // Task scheduling variable
 unsigned long lastFrameTime = 0;
@@ -15,6 +19,10 @@ const unsigned long frameInterval = 1000 / TARGET_FPS;
 
 RainbowEffect fxRainbow;
 SolidColorEffect fxSolid;
+MatrixRainEffect fxRain;
+RipplesEffect fxRipples;
+TwinkleEffect fxTwinkle;
+PlasmaEffect fxPlasma;
 
 void setup() {
     Serial.begin(115200);
@@ -26,7 +34,7 @@ void setup() {
     Storage.begin();
     
     Serial.println("Initializing Network...");
-    Network.begin();
+    WifiMgr.begin();
 
     Serial.println("Initializing Matrix...");
     Matrix.begin();
@@ -44,6 +52,10 @@ void setup() {
     Serial.println("Initializing Effects...");
     FX.addEffect(&fxRainbow);
     FX.addEffect(&fxSolid);
+    FX.addEffect(&fxRain);
+    FX.addEffect(&fxRipples);
+    FX.addEffect(&fxTwinkle);
+    FX.addEffect(&fxPlasma);
     FX.begin();
     
     Serial.println("Setup Complete.");
@@ -59,7 +71,8 @@ void loop() {
         FX.run(); // Updates effect and calls Matrix.show() internally
     }
     
-    Network.loop();
+    WifiMgr.loop();
     WS.loop();
+    yield();
     // TODO: Update OTA (non-blocking)
 }

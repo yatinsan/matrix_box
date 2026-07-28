@@ -6,7 +6,7 @@
 #define MATRIX_WIDTH 17
 #define MATRIX_HEIGHT 17
 #define NUM_LEDS (MATRIX_WIDTH * MATRIX_HEIGHT)
-#define LED_PIN 4  // Can be changed later or configured via web
+#define LED_PIN 5  // Can be changed later or configured via web
 #define COLOR_ORDER GRB
 #define CHIPSET WS2812B
 #define MAX_BRIGHTNESS 255
@@ -24,4 +24,4 @@
 #define BUTTON_PIN 0 // BOOT button on most ESP32-S3 boards
 
 // System
-#define TARGET_FPS 60
+#define TARGET_FPS 30

@@ -47,6 +47,7 @@ void WebSocketManager::handleMessage(AsyncWebSocketClient *client, void *arg, ui
                 uint8_t g = doc["g"];
                 uint8_t b = doc["b"];
                 Matrix.drawPixel(x, y, CRGB(r, g, b));
+                Matrix.show();
             }
             // More websocket commands to come (gamepad, etc)
         }
@@ -84,5 +85,5 @@ void WebSocketManager::broadcastStatus() {
 }
 
 void WebSocketManager::broadcastFrame(const uint8_t* frameData, size_t length) {
-    ws.binaryAll(frameData, length);
+    ws.binaryAll((const char*)frameData, length);
 }

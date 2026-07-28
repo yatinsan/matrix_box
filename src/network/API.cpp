@@ -4,6 +4,8 @@
 #include "../core/Matrix.h"
 #include "../network/WifiManager.h"
 
+#include "../effects/EffectManager.h"
+
 APIManager API;
 
 APIManager::APIManager() {}
@@ -35,6 +37,23 @@ void APIManager::begin(AsyncWebServer* server) {
     );
     server->addHandler(brightnessHandler);
 
+    AsyncCallbackJsonWebHandler* effectHandler = new AsyncCallbackJsonWebHandler("/api/effect", 
+        [](AsyncWebServerRequest *request, JsonVariant &json) {
+            JsonObject jsonObj = json.as<JsonObject>();
+            if (jsonObj.containsKey("name")) {
+                String effectName = jsonObj["name"].as<String>();
+                if (FX.setEffect(effectName)) {
+                    request->send(200, "application/json", "{\"status\":\"success\"}");
+                } else {
+                    request->send(404, "application/json", "{\"status\":\"error\",\"message\":\"Effect not found\"}");
+                }
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing name\"}");
+            }
+        }
+    );
+    server->addHandler(effectHandler);
+
     AsyncCallbackJsonWebHandler* wifiHandler = new AsyncCallbackJsonWebHandler("/api/wifi", 
         [](AsyncWebServerRequest *request, JsonVariant &json) {
             JsonObject jsonObj = json.as<JsonObject>();
@@ -43,9 +62,14 @@ void APIManager::begin(AsyncWebServer* server) {
                 Storage.settings.wifiPass = jsonObj["password"].as<String>();
                 Storage.saveSettings();
                 
+                Serial.printf("[API] WiFi credentials saved for SSID: '%s'. Rebooting in 1 second...\n", Storage.settings.wifiSSID.c_str());
                 request->send(200, "application/json", "{\"status\":\"success\",\"message\":\"WiFi credentials saved. Rebooting...\"}");
-                delay(500);
-                ESP.restart();
+                
+                // Reboot asynchronously after 1000ms to allow HTTP response to send completely
+                xTaskCreate([](void*){
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    ESP.restart();
+                }, "reboot_task", 2048, NULL, 1, NULL);
             } else {
                 request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing ssid or password\"}");
             }
@@ -56,22 +80,24 @@ void APIManager::begin(AsyncWebServer* server) {
 
 void APIManager::handleStatus(AsyncWebServerRequest *request) {
     JsonDocument doc;
-    doc["fps"] = TARGET_FPS; // TODO: Calculate actual FPS
+    doc["fps"] = TARGET_FPS;
     doc["brightness"] = Matrix.getBrightness();
     doc["heap"] = ESP.getFreeHeap();
     doc["psram"] = ESP.getFreePsram();
-    doc["ip"] = Network.getIP();
-    doc["mac"] = Network.getMacAddress();
+    doc["ip"] = WifiMgr.getIP();
+    doc["mac"] = WifiMgr.getMacAddress();
+    Effect* cur = FX.getCurrentEffect();
+    doc["currentEffect"] = cur ? cur->getName() : "None";
     sendJson(request, doc);
 }
 
 void APIManager::handleEffects(AsyncWebServerRequest *request) {
     JsonDocument doc;
     JsonArray effects = doc["effects"].to<JsonArray>();
-    // TODO: Pull from EffectManager
-    effects.add("Rainbow");
-    effects.add("Solid Color");
-    
+    std::vector<String> list = FX.getEffectList();
+    for (const auto& name : list) {
+        effects.add(name);
+    }
     sendJson(request, doc);
 }
 
